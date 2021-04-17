@@ -4,8 +4,8 @@ namespace JackDsp
 class ControlRamp
 {
 public:
-    ControlRamp();
-    ~ControlRamp();
+    ControlRamp() = default;
+    ~ControlRamp() = default;
 
     void setBlockSize (int blocksize)
     {
@@ -22,6 +22,7 @@ public:
     {
         _currentVal = value;
         _targetVal = value;
+        _inc = 0;
     }
 
     bool isRamping ()
@@ -30,30 +31,30 @@ public:
     }
 
     void tick ()
-    {   
-        if (abs (_targetVal -  _currentVal) <= abs (_inc))
+    {
+        if (_inc != 0)
         {
-            _currentVal = _targetVal;
-            _inc = 0;
-            return;
+            _currentVal += _inc; 
+            
+            if (_inc * (_currentVal - _targetVal) >= 0)
+            {
+                setValueImmediate (_targetVal);
+                return;
+            }
         }
-
-        _currentVal += _inc;
     }
 
     void tickMultiple (int numTicks)
     {   
-        while (numTicks > 0)
+        if (_inc != 0)
         {
-            if (abs (_targetVal -  _currentVal) <= abs (_inc))
+             _currentVal += _inc * numTicks;
+
+            if (_inc * (_currentVal - _targetVal) >= 0)
             {
-                _currentVal = _targetVal;
-                _inc = 0;
+                setValueImmediate (_targetVal);
                 return;
             }
-
-            _currentVal += _inc;
-            --numTicks;
         }
     }
 
