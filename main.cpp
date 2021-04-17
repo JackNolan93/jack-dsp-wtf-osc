@@ -4,6 +4,7 @@
 #include <bitset>
 
 #include "WTFOscillator.h"
+#include "ControlRamp.h"
 
 using namespace daisy;
 using namespace daisysp;

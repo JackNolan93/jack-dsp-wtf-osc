@@ -1,3 +1,6 @@
+namespace JackDsp
+{
+
 class ControlRamp
 {
 public:
@@ -6,13 +9,13 @@ public:
 
     void setBlockSize (int blocksize)
     {
-        _blocksize = blocksize; 
+        _blockSize = blocksize; 
     }
 
     void setValue (float value)
     {
         _targetVal = value;
-        _inc = (_targetVal - _currentVal) / bloackSize;
+        _inc = (_targetVal - _currentVal) / _blockSize;
     }
 
     void setValueImmediate (float value)
@@ -28,9 +31,9 @@ public:
 
     void tick ()
     {   
-        if (abs (_targetVal -  _currentVal) =< abs (_inc))
+        if (abs (_targetVal -  _currentVal) <= abs (_inc))
         {
-            _currentVal = _targetValue;
+            _currentVal = _targetVal;
             _inc = 0;
             return;
         }
@@ -42,9 +45,9 @@ public:
     {   
         while (numTicks > 0)
         {
-            if (abs (_targetVal -  _currentVal) =< abs (_inc))
+            if (abs (_targetVal -  _currentVal) <= abs (_inc))
             {
-                _currentVal = _targetValue;
+                _currentVal = _targetVal;
                 _inc = 0;
                 return;
             }
@@ -54,9 +57,9 @@ public:
         }
     }
 
-    float getValue 
+    float getValue () { return _currentVal; }
 
-priavte:
+private:
 
     float _currentVal = 0;
     float _targetVal = 0;
