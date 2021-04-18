@@ -1,6 +1,5 @@
 #include "daisy_seed.h"
 #include "daisysp.h"
-#include <vector>
 #include <bitset>
 
 #include "WTFOscillator.h"
@@ -24,30 +23,40 @@ Switch WindowConfigSwitch;
 dsy_gpio W1_bit0, W1_bit1, W1_bit2;
 dsy_gpio W2_bit0, W2_bit1, W2_bit2;
 
+using Ramp = JackDsp::ControlRamp;
+
 //control vlaues
 float _windowWidth = 0;
 float _freqNormVal = 0;
 float _tuningFreq = 0;
 
+Ramp _freqCV;
+Ramp _windowWidthCV;
+
 void processAnalogueControls ();
 void processDigitalControls ();
 void updateWaveFromIndicators ();
 
-void calculateFreq ();
+void readCVInputs ();
+void updateRealtiimeCV ();
 
 void AudioCallback(float **in, float **out, size_t size)
 {
     processAnalogueControls ();
     processDigitalControls ();
+    readCVInputs ();
 
     for (size_t i = 0; i < size; i++)
     {
-        _wtfOsc.SetWindowW (_windowWidth + hw.adc.GetFloat(2));
+        if (_freqCV.isRamping () || 
+            _windowWidthCV.isRamping ())
+            updateRealtiimeCV ();
 
         out[0][i] = out[1][i] = _wtfOsc.Process ();
     }
 }
 
+void initRamps ();
 void initOscillator ();
 void initControls ();
 void initWaveformIndicator ();
@@ -57,9 +66,10 @@ int main(void)
     hw.Configure();
     hw.Init();
 
-    initOscillator ();
+    initRamps ();
     initControls ();
     initWaveformIndicator ();
+    initOscillator ();
     
     hw.StartAudio (AudioCallback);
     hw.adc.Start ();
@@ -69,19 +79,40 @@ int main(void)
     }
 }
 
+void readCVInputs ()
+{
+    if (abs (hw.adc.GetFloat(3) - _freqCV.getValue ()) > 0.0005)
+        _freqCV.setValue (hw.adc.GetFloat(3));
+
+    if (abs (hw.adc.GetFloat(2) - _windowWidthCV.getValue ()) > 0.0005)
+        _windowWidthCV.setValue (hw.adc.GetFloat(2));
+
+}
+
+void updateRealtiimeCV ()
+{
+    _freqCV.tick (); ;
+    _wtfOsc.SetFreq (_tuningFreq * std::pow (TWELTH_ROOT_2, (_freqCV.getValue () * 3.3  * 12.0)));
+
+    _windowWidthCV.tick (); ;
+    _wtfOsc.SetWindowW (_windowWidth + _windowWidthCV.getValue ());
+}
+
+
 void processAnalogueControls ()
 {
     if (abs (hw.adc.GetFloat(1) - _freqNormVal) > 0.0005)
     {
         _freqNormVal = hw.adc.GetFloat(1);
         _tuningFreq = (_freqNormVal * 300) + 40;
-    }
 
-    calculateFreq ();
+        _wtfOsc.SetFreq (_tuningFreq);
+    }
 
     if (abs (hw.adc.GetFloat(0) - _windowWidth) > 0.0005)
     {
         _windowWidth = hw.adc.GetFloat(0);
+        _wtfOsc.SetWindowW (_windowWidth);
     }
 }
 
@@ -103,6 +134,9 @@ void processDigitalControls ()
         updateOutput = true;
     }
 
+    if (updateOutput) 
+        updateWaveFromIndicators ();
+
     WindowConfigSwitch.Debounce ();
     if (WindowConfigSwitch.RisingEdge ())
     {
@@ -112,9 +146,6 @@ void processDigitalControls ()
     {
         _wtfOsc.SetWindowConfig (JackDsp::WTFOscillator::WindowConfig::Single);
     }
-
-    if (updateOutput) 
-        updateWaveFromIndicators ();
 }
 
 void updateWaveFromIndicators ()
@@ -175,6 +206,15 @@ void initButtons ()
                             Switch::Pull::PULL_UP);
 }
 
+void initRamps ()
+{
+    _freqCV.setBlockSize (int (hw.AudioBlockSize ()));
+    _freqCV.setValueImmediate (0);
+
+    _windowWidthCV.setBlockSize (int (hw.AudioBlockSize ()));
+    _windowWidthCV.setValueImmediate (0);
+}
+
 void initWaveformIndicator ()
 {
     W1_bit0.pin  = hw.GetPin (1);
@@ -207,16 +247,5 @@ void initWaveformIndicator ()
 
     updateWaveFromIndicators ();
 }
-
-void calculateFreq ()
-{
-    //hw.SetLed(hw.adc.GetFloat(3) * 3.57 >= 1);
-    float semiToneOffset = (hw.adc.GetFloat(3) * 3.3  * 12.0);
-    hw.SetLed(semiToneOffset >= 12);
-    float oscFreq = _tuningFreq * std::pow (TWELTH_ROOT_2, semiToneOffset);
-
-    _wtfOsc.SetFreq (oscFreq);
-}
-
 
 
