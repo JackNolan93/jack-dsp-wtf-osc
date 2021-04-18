@@ -27,6 +27,7 @@ using Ramp = JackDsp::ControlRamp;
 
 //control vlaues
 float _windowWidth = 0;
+float _fmModDepth = 0;
 float _freqNormVal = 0;
 float _tuningFreq = 0;
 
@@ -114,6 +115,12 @@ void processAnalogueControls ()
         _windowWidth = hw.adc.GetFloat(0);
         _wtfOsc.SetWindowW (_windowWidth);
     }
+
+    if (abs (hw.adc.GetFloat(4) - _fmModDepth) > 0.0005)
+    {
+        _fmModDepth = hw.adc.GetFloat(4);
+        _wtfOsc.setFMModDepth (_fmModDepth > 0.001 ? _fmModDepth : 0);
+    }
 }
 
 void processDigitalControls ()
@@ -185,13 +192,14 @@ void initControls ()
  
 void initKnobs ()
 {
-    AdcChannelConfig adcConfig [4];
+    AdcChannelConfig adcConfig [5];
     adcConfig[0].InitSingle (hw.GetPin (15));
     adcConfig[1].InitSingle (hw.GetPin (16));
     adcConfig[2].InitSingle (hw.GetPin (24));
     adcConfig[3].InitSingle (hw.GetPin (25));
+    adcConfig[4].InitSingle (hw.GetPin (21));
 
-    hw.adc.Init (adcConfig, 4);
+    hw.adc.Init (adcConfig, 5);
 }
 
 void initButtons ()

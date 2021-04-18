@@ -3,14 +3,12 @@
 
 using namespace JackDsp;
 
-void WTFOscillator::Init(float sample_rate)
+void WTFOscillator::Init(float sampleRate)
 {
-    sample_rate_ = sample_rate;
-
+    sample_rate_ = sampleRate;
     phase_       = 0.0f;
-    next_sample_ = 0.0f;
-    previous_ww_ = 0.0f;
-    high_        = false;
+
+    _fmOsc.init (sampleRate);
 
     SetFreq(220.f);
     SetFrontWaveshape (WaveShape::WS_SIN);
@@ -22,12 +20,10 @@ void WTFOscillator::Init(float sample_rate)
 
 float WTFOscillator::Process()
 {
-    float next_sample = next_sample_;
-
     float this_sample = 0.0;
-    next_sample       = 0.0f;
 
-    phase_ += frequency_;
+    phase_ = _fmOn ? frequency_ + computeFMPhaseIncrement () : frequency_;
+
     while (phase_ > 1.f)
         phase_ -= 1.f;
 
@@ -36,12 +32,13 @@ float WTFOscillator::Process()
                                       _windowAux.containsPhase (phase_) 
                                       ? _bWave : _fWave);
 
-    next_sample_ = next_sample;
     return (2.0f * this_sample - 1.0f);
 }
 
 void WTFOscillator::SetFreq(float frequency)
 {
+    _fmOsc.setFreq (frequency);
+
     frequency  = frequency / sample_rate_;
     frequency  = frequency >= .25f ? .25f : frequency;
     frequency_ = frequency;
@@ -100,6 +97,20 @@ std::pair<int, int> WTFOscillator::getWaveshapeIndexes ()
     return std::make_pair <int, int> (int (_fWave), int (_bWave));
 }
 
+void WTFOscillator::setFMModDepth (float depth)
+{
+    _fmOn = depth != 0;
+    _fmModDepth = depth;
+}
+
+float WTFOscillator::computeFMPhaseIncrement ()
+{
+    float oscOut = (_fmOsc.Process () + 1) / 2;
+    float fmPhaseInc = oscOut * _fmModDepth * frequency_ * 10;
+
+    return fmPhaseInc;
+}
+
 float WTFOscillator::ComputeNaiveSample(float phase, WaveShape wave)
 {
     float out;
@@ -122,7 +133,7 @@ float WTFOscillator::ComputeNaiveSample(float phase, WaveShape wave)
             out = ComputeHarmonicWaveForm (phase);
             break;
         case WS_ZERO:
-            out = 0;
+            out = 0.5;
             break;
         default:
             out = 0.5;
