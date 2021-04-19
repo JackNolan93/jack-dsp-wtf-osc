@@ -22,7 +22,7 @@ float WTFOscillator::Process()
 {
     float this_sample = 0.0;
 
-    phase_ = _fmOn ? frequency_ + computeFMPhaseIncrement () : frequency_;
+    phase_ += _fmOn ? frequency_ + computeFMPhaseIncrement () : frequency_;
 
     while (phase_ > 1.f)
         phase_ -= 1.f;
