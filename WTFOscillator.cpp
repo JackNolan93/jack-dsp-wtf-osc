@@ -37,7 +37,7 @@ float WTFOscillator::Process()
 
 void WTFOscillator::SetFreq(float frequency)
 {
-    _fmOsc.setFreq (frequency);
+    _fmOsc.setFreq (frequency * _fmMult);
 
     frequency  = frequency / sample_rate_;
     frequency  = frequency >= .25f ? .25f : frequency;
@@ -103,12 +103,18 @@ void WTFOscillator::setFMModDepth (float depth)
     _fmModDepth = depth;
 }
 
+void WTFOscillator::setFMMult (float mult)
+{
+    _fmMult = std::floor (mult * 9) + 1;
+    SetFreq (frequency_ * sample_rate_);
+}
+
 float WTFOscillator::computeFMPhaseIncrement ()
 {
     float oscOut = (_fmOsc.Process () + 1) / 2;
-    float fmPhaseInc = oscOut * _fmModDepth * frequency_ * 10;
+    float fmPhaseInc = oscOut * _fmModDepth * frequency_ * sample_rate_ * 10;
 
-    return fmPhaseInc;
+    return fmPhaseInc / sample_rate_;
 }
 
 float WTFOscillator::ComputeNaiveSample(float phase, WaveShape wave)

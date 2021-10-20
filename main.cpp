@@ -4,11 +4,13 @@
 
 #include "WTFOscillator.h"
 #include "ControlRamp.h"
+#include "Config.h"
 
 using namespace daisy;
 using namespace daisysp;
 
 float TWELTH_ROOT_2 = 1.059463094359;
+
 // Hardware
 DaisySeed hw;
 
@@ -28,8 +30,11 @@ using Ramp = JackDsp::ControlRamp;
 //control vlaues
 float _windowWidth = 0;
 float _fmModDepth = 0;
+float _fmMult = 0;
 float _freqNormVal = 0;
 float _tuningFreq = 0;
+
+float MinDelta = 0.0005;
 
 Ramp _freqCV;
 Ramp _windowWidthCV;
@@ -82,44 +87,53 @@ int main(void)
 
 void readCVInputs ()
 {
-    if (abs (hw.adc.GetFloat(3) - _freqCV.getValue ()) > 0.0005)
-        _freqCV.setValue (hw.adc.GetFloat(3));
+    if (abs (hw.adc.GetFloat(Config::ADCChannels::vOct) - _freqCV.getValue ()) > MinDelta)
+        _freqCV.setValue (hw.adc.GetFloat(Config::ADCChannels::vOct));
 
-    if (abs (hw.adc.GetFloat(2) - _windowWidthCV.getValue ()) > 0.0005)
-        _windowWidthCV.setValue (hw.adc.GetFloat(2));
+    if (abs (hw.adc.GetFloat(Config::ADCChannels::windowCV) - _windowWidthCV.getValue ()) > MinDelta)
+        _windowWidthCV.setValue (hw.adc.GetFloat(Config::ADCChannels::windowCV));
 
 }
 
 void updateRealtiimeCV ()
 {
-    _freqCV.tick (); ;
+    _freqCV.tick ();
     _wtfOsc.SetFreq (_tuningFreq * std::pow (TWELTH_ROOT_2, (_freqCV.getValue () * 3.3  * 12.0)));
 
-    _windowWidthCV.tick (); ;
+    _windowWidthCV.tick ();
     _wtfOsc.SetWindowW (_windowWidth + _windowWidthCV.getValue ());
 }
 
 
 void processAnalogueControls ()
 {
-    if (abs (hw.adc.GetFloat(1) - _freqNormVal) > 0.0005)
+    if (abs (hw.adc.GetFloat(Config::ADCChannels::freq) - _freqNormVal) > MinDelta)
     {
-        _freqNormVal = hw.adc.GetFloat(1);
+        _freqNormVal = hw.adc.GetFloat(Config::ADCChannels::freq);
         _tuningFreq = (_freqNormVal * 300) + 40;
 
-        _wtfOsc.SetFreq (_tuningFreq);
+         if (! _freqCV.isRamping ())
+             _wtfOsc.SetFreq (_tuningFreq);
     }
 
-    if (abs (hw.adc.GetFloat(0) - _windowWidth) > 0.0005)
+    if (abs (hw.adc.GetFloat(Config::ADCChannels::windowWidth) - _windowWidth) > MinDelta)
     {
-        _windowWidth = hw.adc.GetFloat(0);
-        _wtfOsc.SetWindowW (_windowWidth);
+        _windowWidth = hw.adc.GetFloat(Config::ADCChannels::windowWidth);
+       
+        if (! _windowWidthCV.isRamping ())
+            _wtfOsc.SetWindowW (_windowWidth);
     }
 
-    if (abs (hw.adc.GetFloat(4) - _fmModDepth) > 0.0005)
+    if (abs (hw.adc.GetFloat(Config::ADCChannels::fmDepth) - _fmModDepth) > MinDelta)
     {
-        _fmModDepth = hw.adc.GetFloat(4);
+        _fmModDepth = hw.adc.GetFloat(Config::ADCChannels::fmDepth);
         _wtfOsc.setFMModDepth (_fmModDepth > 0.001 ? _fmModDepth : 0);
+    }
+
+    if (abs (hw.adc.GetFloat(Config::ADCChannels::fmMult) - _fmMult) > MinDelta)
+    {
+        _fmMult = hw.adc.GetFloat(Config::ADCChannels::fmMult);
+        _wtfOsc.setFMMult (_fmMult);
     }
 }
 
@@ -192,22 +206,24 @@ void initControls ()
  
 void initKnobs ()
 {
-    AdcChannelConfig adcConfig [5];
-    adcConfig[0].InitSingle (hw.GetPin (15));
-    adcConfig[1].InitSingle (hw.GetPin (16));
-    adcConfig[2].InitSingle (hw.GetPin (24));
-    adcConfig[3].InitSingle (hw.GetPin (25));
-    adcConfig[4].InitSingle (hw.GetPin (21));
+    AdcChannelConfig adcConfig [Config::ADCChannels::numChannels];
 
-    hw.adc.Init (adcConfig, 5);
+    adcConfig[Config::ADCChannels::windowWidth].InitSingle (hw.GetPin (Config::windowWidthPin));
+    adcConfig[Config::ADCChannels::freq].InitSingle (hw.GetPin (Config::freqPin));
+    adcConfig[Config::ADCChannels::fmMult].InitSingle (hw.GetPin (Config::fmMultPin));
+    adcConfig[Config::ADCChannels::fmDepth].InitSingle (hw.GetPin (Config::fmDepthPin));
+    adcConfig[Config::ADCChannels::windowCV].InitSingle (hw.GetPin (Config::windowCVPin));
+    adcConfig[Config::ADCChannels::vOct].InitSingle (hw.GetPin (Config::vOctPin));
+
+    hw.adc.Init (adcConfig, Config::ADCChannels::numChannels);
 }
 
 void initButtons ()
 {
-    WaveShapeButton1.Init(hw.GetPin(29), hw.AudioCallbackRate ());
-    WaveShapeButton2.Init(hw.GetPin(30), hw.AudioCallbackRate ());
+    WaveShapeButton1.Init(hw.GetPin(Config::waveform1Pin), hw.AudioCallbackRate ());
+    WaveShapeButton2.Init(hw.GetPin(Config::waveform2Pin), hw.AudioCallbackRate ());
 
-    WindowConfigSwitch.Init(hw.GetPin(28), 
+    WindowConfigSwitch.Init(hw.GetPin(Config::windowConfigPin), 
                             hw.AudioCallbackRate (),
                             Switch::Type::TYPE_TOGGLE, 
                             Switch::Polarity::POLARITY_INVERTED, 
@@ -225,23 +241,23 @@ void initRamps ()
 
 void initWaveformIndicator ()
 {
-    W1_bit0.pin  = hw.GetPin (1);
+    W1_bit0.pin  = hw.GetPin (Config::waveform1MuxPin0);
     W1_bit0.mode = DSY_GPIO_MODE_OUTPUT_PP;
     W1_bit0.pull = DSY_GPIO_PULLDOWN;
-    W1_bit1.pin  = hw.GetPin (2);
+    W1_bit1.pin  = hw.GetPin (Config::waveform1MuxPin1);
     W1_bit1.mode = DSY_GPIO_MODE_OUTPUT_PP;
     W1_bit1.pull = DSY_GPIO_PULLDOWN;
-    W1_bit2.pin  = hw.GetPin (3);
+    W1_bit2.pin  = hw.GetPin (Config::waveform1MuxPin2);
     W1_bit2.mode = DSY_GPIO_MODE_OUTPUT_PP;
     W1_bit2.pull = DSY_GPIO_PULLDOWN;
 
-    W2_bit0.pin  = hw.GetPin (7);
+    W2_bit0.pin  = hw.GetPin (Config::waveform2MuxPin0);
     W2_bit0.mode = DSY_GPIO_MODE_OUTPUT_PP;
     W2_bit0.pull = DSY_GPIO_PULLDOWN;
-    W2_bit1.pin  = hw.GetPin (6);
+    W2_bit1.pin  = hw.GetPin (Config::waveform2MuxPin1);
     W2_bit1.mode = DSY_GPIO_MODE_OUTPUT_PP;
     W2_bit1.pull = DSY_GPIO_PULLDOWN;
-    W2_bit2.pin  = hw.GetPin (5);
+    W2_bit2.pin  = hw.GetPin (Config::waveform2MuxPin2);
     W2_bit2.mode = DSY_GPIO_MODE_OUTPUT_PP;
     W2_bit2.pull = DSY_GPIO_PULLDOWN;
 

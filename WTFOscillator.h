@@ -45,6 +45,7 @@ public:
     void SetBackWaveshape (WaveShape waveshape);
 
     void setFMModDepth (float depth);
+    void setFMMult (float mult);
 
     void IncrementFrontWaveshape ();
     void IncrementBackWaveshape ();
@@ -68,10 +69,10 @@ private:
 
     SinOsc _fmOsc;
     float _fmModDepth = 0;
+    float _fmMult = 1;
     bool _fmOn = false;
 
     WTFWindow _window;
     WTFWindow _windowAux;
-    float ww_;
 };
 }
